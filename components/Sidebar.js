@@ -8,6 +8,8 @@ const sections = [
   { href: '/records', label: 'Student Records' },
   { href: '/sorting', label: 'Sorting & Search' },
   { href: '/fees', label: 'Fee Handling' },
+  { href: '/file-handling', label: 'File Handling' },
+  { href: '/scanner', label: 'Directive Scanner' },
   { href: '/analytics', label: 'Performance Analytics' },
   { href: '/settings', label: 'Settings' },
 ]
