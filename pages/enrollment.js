@@ -87,8 +87,8 @@ export default function Enrollment() {
       </section>
 
       <Card title="Credit Distribution">
-        <div className="min-h-[320px]">
-          <Bar data={chartData} options={{ responsive: true, plugins: { legend: { display: false } } }} />
+        <div className="min-h-[240px] h-[260px]">
+          <Bar data={chartData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }} />
         </div>
       </Card>
 

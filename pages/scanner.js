@@ -1,35 +1,39 @@
-import { useMemo, useState } from 'react'
+﻿import { useMemo, useState } from 'react'
 import Card from '../components/Card'
 
-const directiveKeywords = ['TODO', 'FIXME', 'NOTE', 'IMPORTANT']
+function parseKeywords(keywordString) {
+  return keywordString
+    .split(',')
+    .map(k => k.trim())
+    .filter(Boolean)
+}
 
-function scanDirectives(text) {
-  const pattern = new RegExp(`\\b(${directiveKeywords.join('|')})\\b`, 'gi')
-  const matches = []
-  let match
-
-  while ((match = pattern.exec(text))) {
-    const lineStart = text.lastIndexOf('\n', match.index) + 1
-    const lineEnd = text.indexOf('\n', match.index)
-    const line = text.slice(lineStart, lineEnd === -1 ? text.length : lineEnd)
-    matches.push({ keyword: match[1].toUpperCase(), index: match.index, line: line.trim() })
-  }
-
-  return matches
+function scanText(text, keywords) {
+  if (!keywords.length) return []
+  const pattern = new RegExp(`(${keywords.map(k => k.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')).join('|')})`, 'gi')
+  return text
+    .split(/\r?\n/)
+    .map((line, index) => {
+      const matches = line.match(pattern)
+      if (!matches) return null
+      return {
+        lineNumber: index + 1,
+        keywords: Array.from(new Set(matches.map(m => m.toUpperCase()))),
+        line: line.trim(),
+      }
+    })
+    .filter(Boolean)
 }
 
 export default function Scanner() {
-  const [sourceText, setSourceText] = useState(`// TODO: Add fee validation\n// FIXME: Search algorithm should handle no input\n// NOTE: Update UI for better feedback\nconst studentIds = [1,2,3,4]`)
+  const [sourceText, setSourceText] = useState('')
   const [pathInput, setPathInput] = useState('')
+  const [keywordInput, setKeywordInput] = useState('')
   const [matches, setMatches] = useState([])
-  const [status, setStatus] = useState('Ready to scan any text, path, or URL.')
+  const [status, setStatus] = useState('Enter a URL or paste text to scan.')
   const [loading, setLoading] = useState(false)
 
-  const summary = useMemo(() => {
-    const counts = directiveKeywords.reduce((acc, key) => ({ ...acc, [key]: 0 }), {})
-    matches.forEach(match => { counts[match.keyword] = (counts[match.keyword] || 0) + 1 })
-    return counts
-  }, [matches])
+  const keywords = useMemo(() => parseKeywords(keywordInput), [keywordInput])
 
   async function handleLoad() {
     const value = pathInput.trim()
@@ -46,7 +50,7 @@ export default function Scanner() {
         if (!response.ok) throw new Error(`${response.status} ${response.statusText}`)
         const text = await response.text()
         setSourceText(text)
-        setStatus('Loaded remote content. Press Scan Text.')
+        setStatus('Loaded remote content. Add keywords and press Scan.')
       } catch (error) {
         setStatus(`Failed to load URL: ${error.message}`)
       } finally {
@@ -54,22 +58,42 @@ export default function Scanner() {
       }
     } else {
       setSourceText(value)
-      setStatus('Loaded text/path content into scanner. Press Scan Text.')
+      setStatus('Loaded text/path content into scanner. Add keywords and press Scan.')
     }
   }
 
   function handleScan() {
-    const results = scanDirectives(sourceText)
+    if (!sourceText.trim()) {
+      setStatus('Load or paste content first.')
+      setMatches([])
+      return
+    }
+
+    if (!keywords.length) {
+      setStatus('Enter search keywords to scan the loaded content.')
+      setMatches([])
+      return
+    }
+
+    const results = scanText(sourceText, keywords)
     setMatches(results)
-    setStatus(results.length ? `Found ${results.length} directive(s).` : 'No directives found in the current content.')
+    setStatus(results.length ? `Found ${results.length} matching line(s).` : 'No matches found for the entered keywords.')
   }
+
+  const keywordSummary = useMemo(
+    () => keywords.map(keyword => ({
+      keyword,
+      count: matches.reduce((sum, match) => sum + (match.keywords.includes(keyword.toUpperCase()) ? 1 : 0), 0),
+    })),
+    [keywords, matches]
+  )
 
   return (
     <div>
       <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold">Directive Scanner</h2>
-          <p className="text-gray-300">Scan any pasted text, path string, or remote URL for TODO, FIXME, NOTE and IMPORTANT directives.</p>
+          <p className="text-gray-300">Load any URL or text and scan it for your own keywords. No preset TODO/FIXME list is required.</p>
         </div>
         <div className="flex gap-2">
           <button onClick={handleLoad} disabled={loading} className="rounded-md bg-slate-700 px-4 py-2 text-sm font-semibold hover:bg-slate-600 transition disabled:opacity-50">Load Content</button>
@@ -81,12 +105,27 @@ export default function Scanner() {
         <Card title="Source Content" className="h-full">
           <div className="space-y-4">
             <label className="block text-sm">
-              <span>Paste text, URL, or path</span>
-              <input value={pathInput} onChange={e => setPathInput(e.target.value)} placeholder="https://example.com/file.js or C:\\path\\to\\file.txt or any text" className="mt-2 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-gray-100" />
+              <span>Paste text or enter a URL</span>
+              <input
+                value={pathInput}
+                onChange={e => setPathInput(e.target.value)}
+                placeholder="https://example.com/file.js or any text"
+                className="mt-2 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-gray-100"
+              />
+            </label>
+            <label className="block text-sm">
+              <span>Search keywords (comma separated)</span>
+              <input
+                value={keywordInput}
+                onChange={e => setKeywordInput(e.target.value)}
+                placeholder="e.g. TODO, FIXME, BUG, NOTE"
+                className="mt-2 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-gray-100"
+              />
             </label>
             <textarea
               value={sourceText}
               onChange={e => setSourceText(e.target.value)}
+              placeholder="Loaded content appears here..."
               className="w-full min-h-[300px] resize-none rounded-lg border border-gray-700 bg-gray-950 p-3 text-sm text-gray-100"
             />
             <p className="text-sm text-gray-400">{status}</p>
@@ -95,28 +134,33 @@ export default function Scanner() {
 
         <Card title="Scan Results" className="h-full">
           <div className="grid gap-3">
-            <div className="grid grid-cols-2 gap-3">
-              {directiveKeywords.map(key => (
-                <div key={key} className="rounded-lg bg-gray-900 p-3">
-                  <div className="text-xs uppercase text-gray-400">{key}</div>
-                  <div className="text-2xl font-semibold text-indigo-300">{summary[key] ?? 0}</div>
-                </div>
-              ))}
-            </div>
+            {keywords.length ? (
+              <div className="grid grid-cols-2 gap-3">
+                {keywordSummary.map(item => (
+                  <div key={item.keyword} className="rounded-lg bg-gray-900 p-3">
+                    <div className="text-xs uppercase text-gray-400">{item.keyword}</div>
+                    <div className="text-2xl font-semibold text-indigo-300">{item.count}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg bg-gray-900 p-4 text-sm text-gray-300">Enter search keywords to see matching results.</div>
+            )}
 
             <div className="rounded-lg bg-gray-950 p-3">
-              <div className="font-semibold text-gray-200 mb-2">Found markers</div>
+              <div className="font-semibold text-gray-200 mb-2">Matching lines</div>
               {matches.length ? (
                 <ul className="space-y-2 text-sm text-gray-300">
                   {matches.map((match, index) => (
-                    <li key={`${match.index}-${index}`} className="rounded-md border border-gray-700 bg-gray-900 p-3">
-                      <div className="font-medium text-gray-100">{match.keyword}</div>
-                      <div className="text-xs text-gray-400">Line segment: {match.line}</div>
+                    <li key={`${match.lineNumber}-${index}`} className="rounded-md border border-gray-700 bg-gray-900 p-3">
+                      <div className="text-xs uppercase text-gray-400">Line {match.lineNumber}</div>
+                      <div className="text-sm text-gray-100">{match.line}</div>
+                      <div className="mt-2 text-xs text-gray-400">Keywords: {match.keywords.join(', ')}</div>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-sm text-gray-400">No directives scanned yet. Use the buttons above to load and scan content.</p>
+                <p className="text-sm text-gray-400">No matches yet. Use the scan button after entering keywords.</p>
               )}
             </div>
           </div>
@@ -124,7 +168,7 @@ export default function Scanner() {
       </section>
 
       <Card title="How it works">
-        <p className="text-sm text-gray-300">Paste any text, code snippet, file path string, or remote URL to scan for common developer directives. The scanner highlights TODO, FIXME, NOTE, and IMPORTANT markers instantly.</p>
+        <p className="text-sm text-gray-300">Load any URL or paste any content, then search for your own keywords. This scanner is flexible and not limited to preset directives.</p>
       </Card>
     </div>
   )
