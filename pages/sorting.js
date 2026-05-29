@@ -52,20 +52,23 @@ function binarySearch(items, id) {
   return { index: -1, student: null, sorted }
 }
 
+const initialItems = [...students].sort(() => Math.random() - 0.5)
+
 export default function Sorting() {
   const [searchId, setSearchId] = useState('')
   const [searchAlgorithm, setSearchAlgorithm] = useState('linear')
   const [sortAlgorithm, setSortAlgorithm] = useState('bubble')
-  const [sortResult, setSortResult] = useState(students)
+  const [sortedIds, setSortedIds] = useState([])
   const [searchResult, setSearchResult] = useState(null)
   const [searchMessage, setSearchMessage] = useState('Enter an ID and choose a search method.')
+  const [searchLog, setSearchLog] = useState('Search results appear here.')
 
-  const currentOrder = useMemo(() => sortResult.map(item => item.id).join(', '), [sortResult])
+  const currentOrder = useMemo(() => initialItems.map(item => item.id).join(', '), [])
 
   function runSort() {
     const sorter = sortAlgorithm === 'bubble' ? bubbleSort : selectionSort
-    const sorted = sorter(students)
-    setSortResult(sorted)
+    const sorted = sorter(initialItems).map(item => item.id)
+    setSortedIds(sorted)
   }
 
   function runSearch() {
@@ -76,22 +79,26 @@ export default function Sorting() {
     }
 
     if (searchAlgorithm === 'binary') {
-      const result = binarySearch(students, id)
+      const result = binarySearch(initialItems, id)
       if (result.student) {
         setSearchResult(result.student)
-        setSortResult(result.sorted)
-        setSearchMessage(`Binary search found ID ${id} in sorted list.`)
+        setSearchLog(`Binary search found ID ${id} in sorted list.`)
+        setSearchMessage(`Result found at sorted position ${result.index + 1}.`)
       } else {
         setSearchResult(null)
-        setSearchMessage(`Binary search did not find ID ${id}.`) }
+        setSearchLog(`Binary search did not find ID ${id}.`)
+        setSearchMessage('Try another ID.')
+      }
     } else {
-      const result = linearSearch(students, id)
+      const result = linearSearch(initialItems, id)
       if (result) {
         setSearchResult(result.student)
-        setSearchMessage(`Linear search found ID ${id} at position ${result.index + 1}.`)
+        setSearchLog(`Linear search found ID ${id} at position ${result.index + 1}.`)
+        setSearchMessage(`Result found at index ${result.index + 1}.`)
       } else {
         setSearchResult(null)
-        setSearchMessage(`Linear search did not find ID ${id}.`)
+        setSearchLog(`Linear search did not find ID ${id}.`)
+        setSearchMessage('Try another ID.')
       }
     }
   }
@@ -101,7 +108,7 @@ export default function Sorting() {
       <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold">Sorting & Search</h2>
-          <p className="text-gray-300">Use bubble or selection sort and linear or binary search on student IDs.</p>
+          <p className="text-gray-300">Sort unsorted student IDs on demand and search with linear or binary scan.</p>
         </div>
       </header>
 
@@ -111,7 +118,7 @@ export default function Sorting() {
             <div className="grid gap-3">
               <label className="block text-sm">
                 <span>ID</span>
-                <input value={searchId} onChange={e => setSearchId(e.target.value)} type="number" min="1" className="mt-2 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-gray-100" />
+                <input value={searchId} onChange={e => setSearchId(e.target.value)} type="number" min="1" placeholder="Search student ID" className="mt-2 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-gray-100" />
               </label>
 
               <div className="grid gap-2 sm:grid-cols-2">
@@ -125,18 +132,19 @@ export default function Sorting() {
                 </label>
               </div>
 
-              <button onClick={runSearch} className="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold">Run Search</button>
+              <button onClick={runSearch} className="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold hover:bg-indigo-500 transition">Run Search</button>
             </div>
 
             <div className="rounded-lg border border-gray-700 bg-gray-950 p-4 text-sm text-gray-100">
-              <div className="font-semibold text-gray-200 mb-2">Search result</div>
-              <p>{searchMessage}</p>
+              <div className="font-semibold text-gray-200 mb-2">Search details</div>
+              <p>{searchLog}</p>
               {searchResult && (
                 <div className="mt-3 space-y-1 text-gray-300">
                   <div>ID: {searchResult.id}</div>
                   <div>Name: {searchResult.name}</div>
                 </div>
               )}
+              <p className="mt-3 text-xs text-gray-500">{searchMessage}</p>
             </div>
           </div>
         </Card>
@@ -153,18 +161,22 @@ export default function Sorting() {
                 <span>Selection Sort</span>
               </label>
             </div>
-            <button onClick={runSort} className="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold">Run Sort</button>
+            <button onClick={runSort} className="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold hover:bg-indigo-500 transition">Run Sort</button>
             <div className="rounded-lg border border-gray-700 bg-gray-950 p-4 text-sm text-gray-100">
-              <div className="font-semibold text-gray-200 mb-2">Sorted IDs</div>
-              <div className="flex flex-wrap gap-2 text-sm text-gray-300">{sortResult.map(item => <span key={item.id} className="rounded-full bg-gray-900 px-3 py-1">{item.id}</span>)}</div>
+              <div className="font-semibold text-gray-200 mb-2">Sorted order</div>
+              {sortedIds.length ? (
+                <div className="flex flex-wrap gap-2 text-sm text-gray-300">{sortedIds.map(id => <span key={id} className="rounded-full bg-gray-900 px-3 py-1">{id}</span>)}</div>
+              ) : (
+                <div className="text-gray-400">Not sorted yet. Press Run Sort.</div>
+              )}
             </div>
           </div>
         </Card>
       </section>
 
-      <Card title="Current Student IDs">
+      <Card title="Original Student Order">
         <div className="flex flex-wrap gap-2 text-sm text-gray-300">
-          {students.map(student => (
+          {initialItems.map(student => (
             <div key={student.id} className="rounded-full bg-gray-800 px-3 py-1">{student.id} - {student.name}</div>
           ))}
         </div>

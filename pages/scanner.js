@@ -20,7 +20,10 @@ function scanDirectives(text) {
 
 export default function Scanner() {
   const [sourceText, setSourceText] = useState(`// TODO: Add fee validation\n// FIXME: Search algorithm should handle no input\n// NOTE: Update UI for better feedback\nconst studentIds = [1,2,3,4]`)
+  const [pathInput, setPathInput] = useState('')
   const [matches, setMatches] = useState([])
+  const [status, setStatus] = useState('Ready to scan any text, path, or URL.')
+  const [loading, setLoading] = useState(false)
 
   const summary = useMemo(() => {
     const counts = directiveKeywords.reduce((acc, key) => ({ ...acc, [key]: 0 }), {})
@@ -28,8 +31,37 @@ export default function Scanner() {
     return counts
   }, [matches])
 
+  async function handleLoad() {
+    const value = pathInput.trim()
+    if (!value) {
+      setStatus('Enter a URL or paste text/path content to load.')
+      return
+    }
+
+    if (/^https?:\/\//i.test(value)) {
+      setLoading(true)
+      setStatus('Fetching remote source...')
+      try {
+        const response = await fetch(value)
+        if (!response.ok) throw new Error(`${response.status} ${response.statusText}`)
+        const text = await response.text()
+        setSourceText(text)
+        setStatus('Loaded remote content. Press Scan Text.')
+      } catch (error) {
+        setStatus(`Failed to load URL: ${error.message}`)
+      } finally {
+        setLoading(false)
+      }
+    } else {
+      setSourceText(value)
+      setStatus('Loaded text/path content into scanner. Press Scan Text.')
+    }
+  }
+
   function handleScan() {
-    setMatches(scanDirectives(sourceText))
+    const results = scanDirectives(sourceText)
+    setMatches(results)
+    setStatus(results.length ? `Found ${results.length} directive(s).` : 'No directives found in the current content.')
   }
 
   return (
@@ -37,18 +69,28 @@ export default function Scanner() {
       <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold">Directive Scanner</h2>
-          <p className="text-gray-300">Find TODO, FIXME, NOTE and IMPORTANT markers inside text or code.</p>
+          <p className="text-gray-300">Scan any pasted text, path string, or remote URL for TODO, FIXME, NOTE and IMPORTANT directives.</p>
         </div>
-        <button onClick={handleScan} className="bg-indigo-600 px-4 py-2 rounded-md">Scan Text</button>
+        <div className="flex gap-2">
+          <button onClick={handleLoad} disabled={loading} className="rounded-md bg-slate-700 px-4 py-2 text-sm font-semibold hover:bg-slate-600 transition disabled:opacity-50">Load Content</button>
+          <button onClick={handleScan} className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold hover:bg-indigo-500 transition">Scan Text</button>
+        </div>
       </header>
 
-      <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr] mb-6">
-        <Card title="Source Text" className="h-full">
-          <textarea
-            value={sourceText}
-            onChange={e => setSourceText(e.target.value)}
-            className="w-full min-h-[320px] resize-none rounded-lg border border-gray-700 bg-gray-950 p-3 text-sm text-gray-100"
-          />
+      <section className="grid gap-4 lg:grid-cols-[1.6fr_1fr] mb-6">
+        <Card title="Source Content" className="h-full">
+          <div className="space-y-4">
+            <label className="block text-sm">
+              <span>Paste text, URL, or path</span>
+              <input value={pathInput} onChange={e => setPathInput(e.target.value)} placeholder="https://example.com/file.js or C:\\path\\to\\file.txt or any text" className="mt-2 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-gray-100" />
+            </label>
+            <textarea
+              value={sourceText}
+              onChange={e => setSourceText(e.target.value)}
+              className="w-full min-h-[300px] resize-none rounded-lg border border-gray-700 bg-gray-950 p-3 text-sm text-gray-100"
+            />
+            <p className="text-sm text-gray-400">{status}</p>
+          </div>
         </Card>
 
         <Card title="Scan Results" className="h-full">
@@ -74,15 +116,15 @@ export default function Scanner() {
                   ))}
                 </ul>
               ) : (
-                <p className="text-sm text-gray-400">No directives scanned yet. Press Scan Text.</p>
+                <p className="text-sm text-gray-400">No directives scanned yet. Use the buttons above to load and scan content.</p>
               )}
             </div>
           </div>
         </Card>
-      </div>
+      </section>
 
       <Card title="How it works">
-        <p className="text-sm text-gray-300">Paste any source, notes, or directory text and scan for common directives. The scanner highlights markers for TODO, FIXME, NOTE and IMPORTANT so you can review tasks quickly.</p>
+        <p className="text-sm text-gray-300">Paste any text, code snippet, file path string, or remote URL to scan for common developer directives. The scanner highlights TODO, FIXME, NOTE, and IMPORTANT markers instantly.</p>
       </Card>
     </div>
   )
